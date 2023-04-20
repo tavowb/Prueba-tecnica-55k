@@ -1,18 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import './App.css'
 import { UsersList } from './components/UsersList'
 import { SortBy, type User } from './types.d'
+import { useUsers } from './hooks/useUsers'
+import { Resultados } from './components/Resultados'
 
 function App () {
-  const [users, setUsers] = useState<User[]>([])
+  const { isLoading, isError, refetch, fetchNextPage, hasNextPage, users } = useUsers()
   const [showColors, setShowColors] = useState(false)
   const [sorting, setSorting] = useState<SortBy>(SortBy.NONE)
   const [filterCountry, setFilterCountry] = useState<string | null>(null)
-
-  const originalUsers = useRef<User[]>([])
-  // useRef -> para guardar un valor
-  // que queremos que se comparta entre renderizados
-  // pero que al cambiar, no vuelva a renderizar el componente
 
   const toggleColors = () => {
     setShowColors(!showColors)
@@ -23,33 +20,20 @@ function App () {
     setSorting(newSortingValue)
   }
 
-  const handleReset = () => {
-    setUsers(originalUsers.current)
+  const handleReset = async () => {
+    await refetch()
   }
 
   const handleDelete = (id: string) => {
-    const filteredusers = users.filter(user => user.login.uuid !== id)
-    setUsers(filteredusers)
+    // const filteredusers = users.filter(user => user.login.uuid !== id)
+    // setUsers(filteredusers)
   }
 
   const handleChangeSort = (sort: SortBy) => {
     setSorting(sort)
   }
 
-  useEffect(() => {
-    fetch('https://randomuser.me/api?results=100')
-      .then(async res => await res.json())
-      .then(res => {
-        setUsers(res.results)
-        originalUsers.current = res.results
-      })
-      .catch(err => {
-        console.error(err)
-      })
-  }, [])
-
   const filteredUsers = useMemo(() => {
-    console.log('calculate filteredUsers')
     return filterCountry != null && filterCountry.length > 0
       ? users.filter(user => {
         return user.location.country.toLowerCase().includes(filterCountry.toLowerCase())
@@ -75,6 +59,7 @@ function App () {
   return (
     <div className="App">
       <h1>Prueba técnica</h1>
+      <Resultados/>
       <header>
         <button onClick={toggleColors}>
           Colorear files
@@ -84,7 +69,7 @@ function App () {
           {sorting === SortBy.COUNTRY ? 'No ordenar por país' : 'Ordenar por país'}
         </button>
 
-        <button onClick={handleReset}>
+        <button onClick={() => handleReset}>
           Resetear estado
         </button>
 
@@ -94,7 +79,19 @@ function App () {
 
       </header>
       <main>
-        <UsersList changeSorting={handleChangeSort} deleteUser={handleDelete} showColors={showColors} users={sortedUsers} />
+        {users.length > 0 &&
+          <UsersList changeSorting={handleChangeSort} deleteUser={handleDelete} showColors={showColors} users={sortedUsers} />
+        }
+        {isLoading && <strong>Cargando...</strong>}
+        {isError && <p>Ha ocurrido un error</p>}
+        {!isLoading && users.length === 0 && !isError && <p>No hay usuarios</p>}
+        {!isError && !isLoading && users.length > 0 && hasNextPage === true &&
+        <button onClick={ () => { void fetchNextPage() } } >Cargar más resultados...</button>
+        }
+        {
+          !isError && !isLoading && users.length > 0 && hasNextPage === false &&
+          <p>No hay más resultados</p>
+        }
       </main>
     </div>
   )
